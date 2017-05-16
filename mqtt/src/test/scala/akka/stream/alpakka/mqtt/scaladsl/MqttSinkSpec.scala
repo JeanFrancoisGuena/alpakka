@@ -16,6 +16,8 @@ import org.scalatest.concurrent.ScalaFutures
 import org.scalatest._
 
 import scala.concurrent.duration._
+import org.eclipse.paho.client.mqttv3.MqttException
+import java.util.ResourceBundle
 
 class MqttSinkSpec
     extends TestKit(ActorSystem("MqttSinkSpec"))
@@ -78,13 +80,16 @@ class MqttSinkSpec
 
     "fail to publish when credentials are not provided" in {
       val msg = MqttMessage(secureTopic, ByteString("ohi"))
+      val errorMsg = ResourceBundle
+        .getBundle("org.eclipse.paho.client.mqttv3.internal.nls.messages")
+        .getString(Integer.toString(MqttException.REASON_CODE_NOT_AUTHORIZED))
 
       val termination =
         Source.single(msg).runWith(MqttSink(sinkSettings.withAuth("username1", "bad_password"), MqttQoS.atLeastOnce))
 
       whenReady(termination.failed) { ex =>
         ex shouldBe an[MqttSecurityException]
-        ex.getMessage should include("Not authorized to connect")
+        ex.getMessage should include(errorMsg)
       }
     }
 

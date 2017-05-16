@@ -1,3 +1,4 @@
+addSbtPlugin("com.typesafe.sbteclipse" % "sbteclipse-plugin" % "5.1.0")
 addSbtPlugin("de.heikoseeberger"                 % "sbt-header"       % "1.6.0")
 addSbtPlugin("com.geirsson"                      % "sbt-scalafmt"     % "0.6.6")
 addSbtPlugin("com.dwijnand"                      % "sbt-dynver"       % "1.1.1")

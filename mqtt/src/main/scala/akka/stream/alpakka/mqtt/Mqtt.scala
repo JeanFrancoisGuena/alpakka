@@ -52,10 +52,8 @@ object MqttQoS {
 /**
  * @param subscriptions the mapping between a topic name and a [[MqttQoS]].
  */
-final case class MqttSourceSettings(
-    connectionSettings: MqttConnectionSettings,
-    subscriptions: Map[String, MqttQoS] = Map.empty
-) {
+final case class MqttSourceSettings(connectionSettings: MqttConnectionSettings,
+                                    subscriptions: Map[String, MqttQoS] = Map.empty) {
   @annotation.varargs
   def withSubscriptions(subscription: akka.japi.Pair[String, MqttQoS],
                         subscriptions: akka.japi.Pair[String, MqttQoS]*) =
@@ -71,15 +69,17 @@ object MqttSourceSettings {
     MqttSourceSettings(connectionSettings)
 }
 
-final case class MqttConnectionSettings(
-    broker: String,
-    clientId: String,
-    persistence: MqttClientPersistence,
-    auth: Option[(String, String)] = None,
-    socketFactory: Option[SSLSocketFactory] = None,
-    cleanSession: Boolean = true,
-    will: Option[Will] = None
-) {
+final case class MqttConnectionSettings(broker: String,
+                                        clientId: String,
+                                        persistence: MqttClientPersistence,
+                                        auth: Option[(String, String)] = None,
+                                        socketFactory: Option[SSLSocketFactory] = None,
+                                        cleanSession: Boolean = true,
+                                        will: Option[Will] = None,
+                                        connectionTimeout: Option[Integer] = None,
+                                        keepAliveInterval: Option[Integer] = None,
+                                        automaticReconnect: Boolean = false,
+                                        sslProxyTunneling: Boolean = false) {
   def withBroker(broker: String) =
     copy(broker = broker)
 
@@ -94,6 +94,18 @@ final case class MqttConnectionSettings(
 
   def withClientId(clientId: String) =
     copy(clientId = clientId)
+
+  def withConnectionTimeout(connectionTimeout: Integer) =
+    copy(connectionTimeout = Some(connectionTimeout))
+
+  def withKeepAliveInterval(keepAliveInterval: Integer) =
+    copy(keepAliveInterval = Some(keepAliveInterval))
+
+  def withAutomaticReconnect(automaticReconnect: Boolean) =
+    copy(automaticReconnect = automaticReconnect)
+
+  def withSslProxyTunneling(sslProxyTunneling: Boolean) =
+    copy(sslProxyTunneling = sslProxyTunneling)
 }
 
 object MqttConnectionSettings {
@@ -140,11 +152,8 @@ private[mqtt] trait MqttConnectorLogic { this: GraphStageLogic =>
   def onMessage(message: MqttMessage) = ()
 
   final override def preStart(): Unit = {
-    val client = new MqttAsyncClient(
-      connectionSettings.broker,
-      connectionSettings.clientId,
-      connectionSettings.persistence
-    )
+    val client =
+      new MqttAsyncClient(connectionSettings.broker, connectionSettings.clientId, connectionSettings.persistence)
 
     client.setCallback(new MqttCallback {
       def messageArrived(topic: String, message: PahoMqttMessage) =
@@ -169,6 +178,20 @@ private[mqtt] trait MqttConnectorLogic { this: GraphStageLogic =>
       connectOptions.setWill(will.message.topic, will.message.payload.toArray, will.qos.byteValue.toInt, will.retained)
     }
     connectOptions.setCleanSession(connectionSettings.cleanSession)
+    connectionSettings.connectionTimeout.foreach { connectionTimeout =>
+      connectOptions.setConnectionTimeout(connectionTimeout)
+    }
+    connectionSettings.keepAliveInterval.foreach { keepAliveInterval =>
+      connectOptions.setKeepAliveInterval(keepAliveInterval)
+    }
+    connectOptions.setAutomaticReconnect(connectionSettings.automaticReconnect)
+
+    // TODO: remove the IF statement when Paho MqttConnectOptions class actually contains 'sslProxyTunneling' field
+    if (Try { connectOptions.getClass.getDeclaredField("sslProxyTunneling"); true }
+          .recover { case _ => false }
+          .getOrElse(false))
+      connectOptions.setSslProxyTunneling(connectionSettings.sslProxyTunneling)
+
     client.connect(connectOptions, (), connectHandler)
   }
 

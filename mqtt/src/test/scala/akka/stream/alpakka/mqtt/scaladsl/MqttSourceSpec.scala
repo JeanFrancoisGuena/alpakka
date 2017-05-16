@@ -17,6 +17,7 @@ import org.scalatest.concurrent.ScalaFutures
 
 import scala.collection.immutable.Seq
 import scala.concurrent.duration._
+import java.util.ResourceBundle
 
 class MqttSourceSpec
     extends TestKit(ActorSystem("MqttSinkSpec"))
@@ -101,8 +102,11 @@ class MqttSourceSpec
         MqttSourceSettings(sourceSettings.withAuth("username1", "bad_password"),
                            Map(secureTopic -> MqttQoS.AtLeastOnce))
       val first = MqttSource(settings, 8).runWith(Sink.head)
+      val errorMsg = ResourceBundle
+        .getBundle("org.eclipse.paho.client.mqttv3.internal.nls.messages")
+        .getString(Integer.toString(MqttException.REASON_CODE_NOT_AUTHORIZED))
       whenReady(first.failed) {
-        case e: MqttException => e.getMessage should be("Not authorized to connect")
+        case e: MqttException => e.getMessage should be(errorMsg)
         case e => throw e
       }
     }
